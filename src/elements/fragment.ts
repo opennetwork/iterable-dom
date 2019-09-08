@@ -1,24 +1,32 @@
 import { createNativeElement, NativeElement, NativeElementHydrate } from "./native-element";
 import { ContextSourceOptions, SourceReference, Tree, VNode } from "iterable-h";
-import { DOMLifeCycle } from "../life/cycle";
 import { asyncExtendedIterable, extendedIterable, source as createSource } from "iterable";
+import { DOMLifeCycle } from "../life/cycle";
 
-function hydrate(window: Window, root: ParentNode, source: SourceReference, options: ContextSourceOptions<any>, instance: NativeElement, construct: (parentNode: ParentNode) => ParentNode | Promise<ParentNode>): NativeElementHydrate {
-  type State = {
-    children: SourceReference[];
-    childrenFragments: Map<SourceReference, Node>;
-  };
-  const cycle = new DOMLifeCycle();
-  const stateHolder = new WeakMap<ParentNode, State>();
-  return async function update(node: VNode, tree?: Tree) {
-    return cycle.put(root, instance.reference, tree, {
+type State = {
+  children: SourceReference[];
+  childrenFragments: Map<SourceReference, Node>;
+};
+
+const stateHolder = new WeakMap<ParentNode, State>();
+
+export type DocumentFragmentOptions = ContextSourceOptions<any> & {
+  construct?(parentNode: ParentNode): ParentNode | Promise<ParentNode>;
+  cycle: DOMLifeCycle;
+  window: Window;
+  root: ParentNode;
+};
+
+export function DocumentFragment(options: DocumentFragmentOptions): NativeElementHydrate {
+  return (node: VNode, tree?: Tree): Promise<void> => {
+    return options.cycle.put(options.root, node.reference, tree, {
       construct: async parentNode => {
-        const instance = await construct(parentNode);
+        const instance = await options.construct(parentNode);
         stateHolder.set(instance, { children: [], childrenFragments: new Map() });
         return instance;
       },
       update: async (parentNode, instance: ParentNode) => {
-        const childrenSource = createSource(asyncExtendedIterable(node.children));
+        const childrenSource = createSource(asyncExtendedIterable(node.children || []));
 
         await asyncExtendedIterable(childrenSource)
           .forEach(async childrenState => {
@@ -94,9 +102,3 @@ function hydrate(window: Window, root: ParentNode, source: SourceReference, opti
     });
   };
 }
-
-export const DocumentFragment = createNativeElement(
-  (window: Window, root: ParentNode, source: SourceReference, options: ContextSourceOptions<any>, instance: NativeElement): NativeElementHydrate => {
-    return hydrate(window, root, source, options, instance, () => window.document.createDocumentFragment());
-  }
-);

@@ -18,7 +18,21 @@ type DOMLifeCycleTarget = Element | ParentNode;
 
 export class DOMLifeCycle implements LifeCycle<ParentNode, DOMLifeCycleTarget> {
 
+  trees?: Tree[];
+
   put(parent: ParentNode, reference: SourceReference, tree: Tree | undefined, cycle: LifeCycleOptions<ParentNode, DOMLifeCycleTarget>): Promise<void> {
+    if (!tree) {
+      // Root node in this tree
+      return this.put(
+        parent,
+        reference,
+        {
+          reference,
+          children: []
+        },
+        cycle
+      );
+    }
     return undefined;
   }
 

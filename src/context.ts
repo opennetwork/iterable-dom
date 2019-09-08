@@ -10,10 +10,12 @@ import {
 } from "iterable-h";
 import { Elements, isNativeElement, ElementFactory, isNativeElementConstructor } from "./elements";
 import { extendedIterable, ExtendedIterable } from "iterable";
+import { DOMLifeCycle } from "./life/cycle";
 
 export class DOMVContext extends WeakVContext {
 
   private elementFactories: Map<SourceReference, ElementFactory>;
+  private lifeCycle: DOMLifeCycle = new DOMLifeCycle();
 
   get elements(): ExtendedIterable<SourceReference> {
     return extendedIterable(this.elementFactories.keys());
@@ -41,13 +43,6 @@ export class DOMVContext extends WeakVContext {
   }
 
   createElement(source: Source<any, any>, options: ContextSourceOptions<any>): undefined | AsyncIterable<VNode> {
-    if (isNativeElementConstructor(source)) {
-      return createElement(
-        source(this.window, this.root, Symbol("Native Element Constructor"), options),
-        options
-      );
-    }
-
     if (!isSourceReference(source)) {
       return undefined;
     }
