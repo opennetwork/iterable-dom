@@ -1,0 +1,30 @@
+{
+  "name": "iterable-dom",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc --declaration && npm run tslint",
+    "watch": "tsc -w",
+    "tslint": "tslint -c tslint.json -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {},
+  "dependencies": {
+    "iterable": "^5.2.0",
+    "iterable-h": "^6.3.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opennetwork/iterable-dom.git"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^12.2.4",
+    "esm": "^3.2.25",
+    "htm": "^2.2.1",
+    "jsdom": "^15.1.1",
+    "tslint": "^5.19.0",
+    "typescript": "^3.5.3"
+  }
+}
