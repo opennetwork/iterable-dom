@@ -14,13 +14,14 @@ export interface LifeCycle<Parent, Instance> {
 
 }
 
-type DOMLifeCycleTarget = Element | ParentNode;
+type DOMLifeCycleTarget = Node | Element | ParentNode;
 
 export class DOMLifeCycle implements LifeCycle<ParentNode, DOMLifeCycleTarget> {
 
   trees?: Tree[];
 
   put(parent: ParentNode, reference: SourceReference, tree: Tree | undefined, cycle: LifeCycleOptions<ParentNode, DOMLifeCycleTarget>): Promise<void> {
+    console.log(arguments);
     if (!tree) {
       // Root node in this tree
       return this.put(

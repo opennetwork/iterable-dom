@@ -5,80 +5,62 @@ import {
   ScalarVNode,
   isNativeVNode,
   VNode,
-  Tree
+  Tree, isSourceReference
 } from "iterable-h";
-import { asyncExtendedIterable } from "iterable";
-
-export interface NativeElementConstructor {
-  (window: Window, root: ParentNode, source: SourceReference, options: ContextSourceOptions<any>): AsyncIterable<NativeElement>;
-}
 
 export interface NativeElementHydrate {
   (node: VNode, tree?: Tree, hydrateChildren?: () => Promise<void>): Promise<void>;
 }
 
-export interface NativeElementHydrateFactory {
-  (window: Window, root: ParentNode, source: SourceReference, options: ContextSourceOptions<any>, instance: NativeElement): NativeElementHydrate;
-}
+const NativeElement = Symbol("Native DOM Element");
 
-export interface NativeElement extends NativeVNode, NativeElementConstructor {
-  source: ScalarVNode;
+export interface NativeElementLike {
   hydrate: NativeElementHydrate;
+  [NativeElement]: true;
+  native: true;
 }
 
-export function isNativeElement(value: unknown): value is NativeElement {
-  function isNativeElementLike(value: unknown): value is NativeVNode & { hydrate?: unknown } {
-    return isNativeVNode(value);
-  }
-  return (
-    typeof value === "function" &&
-    isNativeElementLike(value) &&
-    typeof value.hydrate === "function"
-  );
+export interface NativeElement extends NativeVNode, NativeElementLike {
+  source: SourceReference;
+  hydrate: NativeElementHydrate;
+  [NativeElement]: true;
 }
-
-const NativeElementConstructor = Symbol("Native Element Constructor");
 
 // If we wanted to identify it
 //
 // In JavaScript without types we cannot know what this function is going to return without invoking it
 //
 // By marking the constructor we have given us something to check against
-export function isNativeElementConstructor(value: unknown): value is NativeElementConstructor {
-  function isNativeElementConstructorLike(value: unknown): value is NativeElementConstructor & { [NativeElementConstructor]?: unknown } {
-    return typeof value === "function";
+export function isNativeElement(value: unknown): value is NativeElement {
+  function isNativeElementLike(value: unknown): value is NativeVNode & Partial<NativeElement> {
+    return isNativeVNode(value);
   }
   return (
-    isNativeElementConstructorLike(value) &&
-    value[NativeElementConstructor] === true
+    isNativeElementLike(value) &&
+    typeof value.hydrate === "function" &&
+    isSourceReference(value.source) &&
+    value[NativeElement] === true
   );
 }
 
-export function createNativeElement(factory: NativeElementHydrateFactory): NativeElementConstructor {
-  const element: NativeElementConstructor & { [NativeElementConstructor]?: true } = function constructor(window: Window, root: ParentNode, source: SourceReference, options: ContextSourceOptions<any>): AsyncIterable<NativeElement> {
-    const instance: NativeElementConstructor & Partial<NativeVNode> & { hydrate?: Function } = function(window: Window, root: Element, source: SourceReference, options: ContextSourceOptions<any>): AsyncIterable<NativeElement> {
-      // This allows the same element to be constructed again from scratch but with new options
-      return constructor(window, root, source, options);
-    };
-    instance.source = source;
-    let hydrate: NativeElementHydrate;
-    instance.reference = options.reference;
-    instance.hydrate = (...args: Parameters<NativeElementHydrate>) => {
-      if (!isNativeElement(instance)) {
-        throw new Error("Something went wrong while accessing the instance");
-      }
-      // Don't create the instance until it is required
-      if (!hydrate) {
-        hydrate = factory(window, root, source, options, instance);
-      }
-      return hydrate(...args);
-    };
-    console.log(instance);
-    if (!isNativeElement(instance)) {
-      throw new Error("Something went wrong while constructing the instance");
-    }
-    return asyncExtendedIterable([instance]);
+export function isNativeElementLike(value: unknown): value is NativeElementLike {
+  function isNativeElementLikeLike(value: unknown): value is { hydrate?: unknown, [NativeElement]?: unknown, native?: unknown } {
+    return isNativeVNode(value);
+  }
+  return (
+    isNativeElementLikeLike(value) &&
+    typeof value.hydrate === "function" &&
+    value[NativeElement] === true &&
+    value.native === true
+  );
+}
+
+export function createNativeElement(source: SourceReference, hydrate: NativeElementHydrate): NativeElement {
+  return {
+    source,
+    hydrate,
+    reference: source,
+    native: true,
+    [NativeElement]: true
   };
-  element[NativeElementConstructor] = true;
-  return element;
 }

@@ -17,5 +17,8 @@ function element() {
 }
 
 replace(context, element())
-  .then(() => console.log("done"))
+  .then(() => {
+    console.log(window.document.body.children.item(0));
+    console.log("done")
+  })
   .catch((error) => console.error({ error }));

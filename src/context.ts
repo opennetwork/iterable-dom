@@ -5,11 +5,10 @@ import {
   ContextSourceOptions,
   Source,
   isSourceReference,
-  SourceReference,
-  createElement
+  SourceReference
 } from "iterable-h";
-import { Elements, isNativeElement, ElementFactory, isNativeElementConstructor } from "./elements";
-import { extendedIterable, ExtendedIterable } from "iterable";
+import { Elements, isNativeElement, ElementFactory, isNativeElementLike, createNativeElement } from "./elements";
+import { asyncExtendedIterable, extendedIterable, ExtendedIterable } from "iterable";
 import { DOMLifeCycle } from "./life/cycle";
 
 export class DOMVContext extends WeakVContext {
@@ -43,6 +42,8 @@ export class DOMVContext extends WeakVContext {
   }
 
   createElement(source: Source<any, any>, options: ContextSourceOptions<any>): undefined | AsyncIterable<VNode> {
+
+
     if (!isSourceReference(source)) {
       return undefined;
     }
@@ -58,7 +59,15 @@ export class DOMVContext extends WeakVContext {
       return undefined;
     }
 
-    return elementFactory(this.window, this.root, source, options);
+    const element = elementFactory({
+      ...options,
+      source,
+      lifeCycle: this.lifeCycle,
+      window: this.window,
+      root: this.root
+    });
+
+    return asyncExtendedIterable([element]);
   }
 
   async hydrate(node: VNode, tree?: Tree, hydrateChildren?: () => Promise<void>): Promise<void> {

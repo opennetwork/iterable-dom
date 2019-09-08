@@ -8,29 +8,32 @@ type State = {
   childrenFragments: Map<SourceReference, Node>;
 };
 
-const stateHolder = new WeakMap<ParentNode, State>();
+const stateHolder = new WeakMap<Node, State>();
 
 export type DocumentFragmentOptions = ContextSourceOptions<any> & {
-  construct?(parentNode: ParentNode): ParentNode | Promise<ParentNode>;
-  cycle: DOMLifeCycle;
+  construct?(parentNode: ParentNode): Node | Promise<Node>;
+  update?(parentNode: ParentNode, instance: Node): Node | Promise<Node>;
+  destroy?(parentNode: ParentNode, instance: Node): void | Promise<void>;
+  source: SourceReference;
+  lifeCycle: DOMLifeCycle;
   window: Window;
   root: ParentNode;
 };
 
-export function DocumentFragment(options: DocumentFragmentOptions): NativeElementHydrate {
-  return (node: VNode, tree?: Tree): Promise<void> => {
-    return options.cycle.put(options.root, node.reference, tree, {
+export function DocumentFragment(options: DocumentFragmentOptions): NativeElement {
+  return createNativeElement(options.source, (node: VNode, tree?: Tree): Promise<void> => {
+    return options.lifeCycle.put(options.root, node.reference, tree, {
       construct: async parentNode => {
         const instance = await options.construct(parentNode);
         stateHolder.set(instance, { children: [], childrenFragments: new Map() });
         return instance;
       },
-      update: async (parentNode, instance: ParentNode) => {
+      update: async (parentNode, instance: Node) => {
         const childrenSource = createSource(asyncExtendedIterable(node.children || []));
 
         await asyncExtendedIterable(childrenSource)
           .forEach(async childrenState => {
-            const state = stateHolder.get(parentNode);
+            const state = stateHolder.get(instance);
             if (!state) {
               childrenSource.close();
               return undefined;
@@ -74,15 +77,9 @@ export function DocumentFragment(options: DocumentFragmentOptions): NativeElemen
               nextFragment.append(instance);
             });
 
-            while (instance.children.length > 1) {
-              instance.children.item(1).remove();
-            }
+            nextFragment.append(window.document.createElement("span"));
 
-            if (instance.firstElementChild) {
-              instance.firstElementChild.replaceWith(nextFragment);
-            } else {
-              instance.append(nextFragment);
-            }
+            instance.parentNode.replaceChild(instance, nextFragment);
 
             function getFragment(reference: SourceReference): Node {
               if (state.childrenFragments.has(reference)) {
@@ -96,9 +93,9 @@ export function DocumentFragment(options: DocumentFragmentOptions): NativeElemen
 
         return instance;
       },
-      destroy: (parentNode, instance: ParentNode) => {
+      destroy: (parentNode, instance: Node) => {
         stateHolder.delete(instance);
       }
     });
-  };
+  });
 }

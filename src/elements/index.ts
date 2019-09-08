@@ -1,11 +1,13 @@
-import { ContextSourceOptions, SourceReference, VNode } from "iterable-h";
+import { SourceReference } from "iterable-h";
+import { DocumentFragmentOptions, DocumentFragment } from "./fragment";
+import { NativeElement } from "./native-element";
 
 export interface ElementFactory {
-  (window: Window, root: ParentNode, source: SourceReference, options: ContextSourceOptions<any>): AsyncIterable<VNode>;
+  (options: DocumentFragmentOptions): NativeElement;
 }
 
 export const Elements: Record<SourceReference, ElementFactory> = {
-
+  DocumentFragment
 };
 
 export * from "./native-element";
