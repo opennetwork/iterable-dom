@@ -68,7 +68,7 @@ export class DOMVContext extends WeakVContext {
 
   async hydrate(node: VNode, tree?: Tree, hydrateChildren?: () => Promise<void>, root: Node = this.root): Promise<void> {
     if (!isNativeElement(node)) {
-      return hydrateChildren ? hydrateChildren() : undefined;
+      return hydrateChildren ? await hydrateChildren() : undefined;
     }
     return node.hydrate(root || this.root, node, tree, hydrateChildren);
   }

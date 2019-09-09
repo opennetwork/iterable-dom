@@ -19,7 +19,7 @@ export function DocumentFragment(options: DocumentFragmentOptions) {
   };
   return options.lifeCycle.register(initialOptions, (root: Node, node: VNode, tree?: Tree) => {
     return options.lifeCycle.put(root, initialOptions, node.reference, tree, {
-      async *update(parentNode, instance: Node, unused, state) {
+      async *update(parentNode: Node, instance: Node, unused: unknown, state: Map<any, unknown>) {
         const currentFragment = state.get(CurrentFragment);
         const fragment = options.window.document.createDocumentFragment();
         await hydrateChildren(options.context, node, tree, fragment);
