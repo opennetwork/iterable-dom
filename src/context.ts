@@ -20,7 +20,7 @@ export class DOMVContext extends WeakVContext {
     return extendedIterable(this.elementFactories.keys());
   }
 
-  constructor(private window: Window, private root: Node = window.document.body) {
+  constructor(readonly window: Window, readonly root: Node = window.document.body) {
     super();
     const elementsObject: Record<string, ElementFactory> = {
       ...Elements
@@ -66,11 +66,11 @@ export class DOMVContext extends WeakVContext {
     });
   }
 
-  async hydrate(node: VNode, tree?: Tree, hydrateChildren?: () => Promise<void>): Promise<void> {
+  async hydrate(node: VNode, tree?: Tree, hydrateChildren?: () => Promise<void>, root: Node = this.root): Promise<void> {
     if (!isNativeElement(node)) {
       return hydrateChildren ? hydrateChildren() : undefined;
     }
-    return node.hydrate(node, tree, hydrateChildren);
+    return node.hydrate(root || this.root, node, tree, hydrateChildren);
   }
 
   context(root: Node): DOMVContext {

@@ -7,7 +7,7 @@ import {
 } from "iterable-h";
 
 export interface NativeElementHydrate {
-  (node: VNode, tree?: Tree, hydrateChildren?: () => Promise<void>): Promise<void>;
+  (root: Node, node: VNode, tree?: Tree, hydrateChildren?: () => Promise<void>): Promise<void>;
 }
 
 const NativeElement = Symbol("Native DOM Element");
@@ -32,18 +32,20 @@ export function isNativeElement(value: unknown): value is NativeElement {
     isNativeElementLike(value) &&
     typeof value.hydrate === "function" &&
     isSourceReference(value.source) &&
-    value.node &&
     value[NativeElement] === true
   );
 }
 
-export function createNativeElement(source: SourceReference, hydrate: NativeElementHydrate, node: Element | Node | ParentNode): NativeElement {
+export function createNativeElement(source: SourceReference, hydrate: NativeElementHydrate, getNode: () => Element | Node | ParentNode, children?: AsyncIterable<AsyncIterable<VNode>>): NativeElement {
   return {
-    node,
+    get node() {
+      return getNode();
+    },
     source,
     hydrate,
     reference: source,
     native: true,
+    children,
     [NativeElement]: true
   };
 }

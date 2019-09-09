@@ -1,28 +1,29 @@
-import { ContextSourceOptions, SourceReference, Tree, VContext, VNode } from "iterable-h";
+import { ContextSourceOptions, Source, SourceReference, Tree, VContext, VNode } from "iterable-h";
 import { createNativeElement, NativeElement, NativeElementHydrate } from "../elements";
 import { asyncExtendedIterable, source, TransientAsyncIteratorSource } from "iterable";
+import { children } from "iterable-h/dist/children";
 
 export interface LifeCycleOptions<Parent, Instance> {
 
-  construct?(parentNode: Parent): Instance | Promise<Instance>;
-  update?(parentNode: Parent, element: Instance, childrenSource: AsyncIterable<VNode>): AsyncIterable<Instance>;
-  destroy?(parentNode: Parent, element: Instance): void | Promise<void>;
+  construct?(parentNode: Parent, state: Map<any, unknown>): Instance | Promise<Instance>;
+  update?(parentNode: Parent, element: Instance, childrenSource: AsyncIterable<VNode>, state: Map<any, unknown>): AsyncIterable<Instance>;
+  destroy?(parentNode: Parent, element: Instance, state: Map<any, unknown>): void | Promise<void>;
 
 }
 
 export interface LifeCycle<Parent, Instance, Options, Hydrate, ReturnType> {
 
   register(options: Options, hydrate: Hydrate): AsyncIterable<ReturnType>;
-  put(options: Options, reference: SourceReference, tree: Tree | undefined, cycle: LifeCycleOptions<Parent, Instance>): Promise<void>;
+  put(root: Parent, options: Options, reference: SourceReference, tree: Tree | undefined, cycle: LifeCycleOptions<Parent, Instance>): Promise<void>;
 
 }
 
 type DOMLifeCycleTarget = Node;
 
 export type DOMLifeCycleOptions<C extends VContext = unknown, ReturnType extends DOMLifeCycleTarget = DOMLifeCycleTarget> = ContextSourceOptions<C> & {
-  construct(parentNode: Node): Node | Promise<ReturnType>;
-  update?(parentNode: Node, instance: ReturnType): ReturnType | Promise<ReturnType>;
-  destroy?(parentNode: Node, instance: ReturnType): void | Promise<void>;
+  construct(parentNode: Node, state: Map<any, unknown>): Node | Promise<ReturnType>;
+  update?(parentNode: Node, instance: ReturnType, state: Map<any, unknown>): ReturnType | Promise<ReturnType>;
+  destroy?(parentNode: Node, instance: ReturnType, state: Map<any, unknown>): void | Promise<void>;
   source: SourceReference;
   lifeCycle: DOMLifeCycle;
   window: Window;
@@ -31,51 +32,36 @@ export type DOMLifeCycleOptions<C extends VContext = unknown, ReturnType extends
 
 export interface DOMLifeCycleState {
   instance?: Node;
+  mountedInstance?: Node;
+  initialSource: boolean;
   internalSource: TransientAsyncIteratorSource<NativeElement>;
-  source: TransientAsyncIteratorSource<NativeElement>;
+  state: Map<any, unknown>;
   hydrate: NativeElementHydrate;
 }
 
 export class DOMLifeCycle implements LifeCycle<Node, DOMLifeCycleTarget, DOMLifeCycleOptions, NativeElementHydrate, NativeElement> {
 
-  private readonly nodes = new WeakMap<DOMLifeCycleOptions, DOMLifeCycleState>();
+  private readonly nodes = new Map<SourceReference, DOMLifeCycleState>();
 
   register(options: DOMLifeCycleOptions, hydrate: NativeElementHydrate): AsyncIterable<NativeElement> {
     const nodes = this.nodes;
     const state: DOMLifeCycleState = {
       hydrate,
+      state: new Map(),
       internalSource: source(),
-      source: source(
-        {
-          [Symbol.asyncIterator]: () => ({
-            async next(): Promise<IteratorResult<NativeElement>> {
-              const state = nodes.get(options);
-              if (state.instance) {
-                return { done: true, value: undefined };
-              }
-              // This is the initial instance that we will work against
-              const instance = await options.construct(options.root);
-              nodes.set(options, {
-                ...state,
-                instance
-              });
-              return {
-                done: false,
-                value: createNativeElement(options.source, hydrate, instance)
-              };
-            }
-          })
-        }
-      )
+      initialSource: false
     };
-    this.nodes.set(options, state);
-    return asyncExtendedIterable(state.source).toIterable();
+    nodes.set(options.reference, state);
+    return asyncExtendedIterable([
+      createNativeElement(options.source, hydrate, () => this.nodes.get(options.reference).mountedInstance, asyncExtendedIterable([options.children]))
+    ]).toIterable();
   }
 
-  async put(options: DOMLifeCycleOptions, reference: SourceReference, tree: Tree | undefined, cycle: LifeCycleOptions<Node, DOMLifeCycleTarget>): Promise<void> {
+  async put(root: Node, options: DOMLifeCycleOptions, reference: SourceReference, tree: Tree | undefined, cycle: LifeCycleOptions<Node, DOMLifeCycleTarget>): Promise<void> {
     if (!tree) {
       // Root node in this tree
       return this.put(
+        root,
         options,
         reference,
         {
@@ -85,31 +71,51 @@ export class DOMLifeCycle implements LifeCycle<Node, DOMLifeCycleTarget, DOMLife
         cycle
       );
     }
-    const state = this.nodes.get(options);
-    let mountedInstance: Node = undefined;
+    const nodes = this.nodes;
+    if (!nodes.get(options.reference)) {
+      return;
+    }
+    if (!nodes.get(options.reference).instance) {
+      nodes.set(options.reference, {
+        ...nodes.get(options.reference),
+        instance: await options.construct(root, nodes.get(options.reference).state)
+      });
+    }
     async function onInstance(nextInstance: Node): Promise<void> {
-      if (nextInstance === mountedInstance) {
+      if (nextInstance === nodes.get(options.reference).mountedInstance) {
         return;
       }
-      if (mountedInstance) {
-        options.root.replaceChild(mountedInstance, nextInstance);
+      if (!nodes.get(options.reference).mountedInstance) {
+        root.appendChild(nextInstance);
       } else {
-        options.root.appendChild(nextInstance);
-        mountedInstance = nextInstance;
-      }
-      if (options.update) {
-        const result = await options.update(options.root, mountedInstance);
-        if (result !== mountedInstance) {
-          return onInstance(mountedInstance);
+        const instance = nodes.get(options.reference).mountedInstance;
+        if (!instance.parentNode) {
+          root.firstChild.replaceWith(nextInstance);
+        } else {
+          instance.parentNode.replaceChild(nextInstance, instance);
         }
       }
-      state.source.push(createNativeElement(options.source, state.hydrate, nextInstance));
+      nodes.set(options.reference, {
+        ...nodes.get(options.reference),
+        instance: nextInstance,
+        mountedInstance: nextInstance
+      });
+      if (options.update) {
+        const result = await options.update(root, nodes.get(options.reference).mountedInstance, nodes.get(options.reference).state);
+        if (result !== nodes.get(options.reference).mountedInstance) {
+          return onInstance(result);
+        }
+      }
     }
-    for await (const nextInstance of cycle.update(options.root, state.instance, options.children)) {
+    for await (const nextInstance of cycle.update(root, nodes.get(options.reference).instance, options.children, this.nodes.get(options.reference).state)) {
       await onInstance(nextInstance);
     }
-    // Nothing more to come
-    state.source.close();
+    // if (options.destroy) {
+    //   await options.destroy(root, this.nodes.get(options.reference).instance, this.nodes.get(options.reference).state);
+    // }
+    // if (cycle.destroy) {
+    //   await cycle.destroy(root, this.nodes.get(options.reference).instance, this.nodes.get(options.reference).state);
+    // }
   }
 
 }
