@@ -7,7 +7,7 @@ import {
   isSourceReference,
   SourceReference
 } from "iterable-h";
-import { Elements, isNativeElement, ElementFactory, isNativeElementLike, createNativeElement } from "./elements";
+import { Elements, isNativeElement, ElementFactory } from "./elements";
 import { asyncExtendedIterable, extendedIterable, ExtendedIterable } from "iterable";
 import { DOMLifeCycle } from "./life/cycle";
 
@@ -20,7 +20,7 @@ export class DOMVContext extends WeakVContext {
     return extendedIterable(this.elementFactories.keys());
   }
 
-  constructor(private window: Window, private root: ParentNode = window.document.body) {
+  constructor(private window: Window, private root: Node = window.document.body) {
     super();
     const elementsObject: Record<string, ElementFactory> = {
       ...Elements
@@ -42,8 +42,6 @@ export class DOMVContext extends WeakVContext {
   }
 
   createElement(source: Source<any, any>, options: ContextSourceOptions<any>): undefined | AsyncIterable<VNode> {
-
-
     if (!isSourceReference(source)) {
       return undefined;
     }
@@ -59,15 +57,13 @@ export class DOMVContext extends WeakVContext {
       return undefined;
     }
 
-    const element = elementFactory({
+    return elementFactory({
       ...options,
       source,
       lifeCycle: this.lifeCycle,
       window: this.window,
       root: this.root
     });
-
-    return asyncExtendedIterable([element]);
   }
 
   async hydrate(node: VNode, tree?: Tree, hydrateChildren?: () => Promise<void>): Promise<void> {
@@ -77,7 +73,7 @@ export class DOMVContext extends WeakVContext {
     return node.hydrate(node, tree, hydrateChildren);
   }
 
-  context(root: ParentNode): DOMVContext {
+  context(root: Node): DOMVContext {
     return new DOMVContext(this.window, root);
   }
 
